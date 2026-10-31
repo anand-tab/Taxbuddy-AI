@@ -877,19 +877,36 @@ export default function Home() {
 
             <div className="space-y-3.5 text-xs">
               <div>
-                <div className="flex justify-between font-medium text-slate-300 mb-1">
+                <div className="flex justify-between items-center font-medium text-slate-300 mb-1">
                   <span>Annual Salary:</span>
-                  <span className="text-emerald-400 font-mono font-bold">{formatCurrency(quickSalary)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-400 font-mono font-bold text-xs">{formatCurrency(quickSalary)}</span>
+                    <input
+                      type="number"
+                      min={100000}
+                      max={500000000}
+                      step={500000}
+                      value={quickSalary}
+                      onChange={(e) => setQuickSalary(Math.max(0, Number(e.target.value)))}
+                      className="w-24 text-right bg-[#121829] border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
                 <input
                   type="range"
                   min={300000}
-                  max={5000000}
-                  step={50000}
+                  max={150000000}
+                  step={500000}
                   value={quickSalary}
                   onChange={(e) => setQuickSalary(Number(e.target.value))}
                   className="w-full accent-emerald-500 bg-slate-800 rounded-lg cursor-pointer"
                 />
+                <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+                  <span>₹3 Lakh</span>
+                  <span>₹1 Crore</span>
+                  <span>₹5 Crore</span>
+                  <span>₹15 Crore</span>
+                </div>
               </div>
 
               <div>
