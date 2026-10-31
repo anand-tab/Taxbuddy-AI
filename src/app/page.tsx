@@ -12,14 +12,15 @@ import {
   Send,
   FileText,
   ShieldCheck,
-  CheckCircle2,
   TrendingUp,
   X,
   Lock,
   Mail,
   Zap,
   ArrowRight,
-  ChevronRight
+  ShieldAlert,
+  Coins,
+  CheckCircle2
 } from 'lucide-react';
 import {
   compareRegimes,
@@ -61,17 +62,17 @@ interface Message {
 export default function Home() {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<TaxProfile | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [showProfileDrawer, setShowProfileDrawer] = useState<boolean>(false);
-
-  // Form states
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+
+  // Dashboard / Profile state
+  const [profile, setProfile] = useState<TaxProfile | null>(null);
+  const [showProfileDrawer, setShowProfileDrawer] = useState<boolean>(false);
 
   // Chat states
   const [messages, setMessages] = useState<Message[]>([
@@ -79,7 +80,7 @@ export default function Home() {
       id: '1',
       role: 'assistant',
       content:
-        "👋 **Namaste! I am TaxBuddy**, your personal AI tax advisor for **FY 2025-26**.\n\nYou can chat with me in natural language or **upload your Form 16 / Monthly Payslip** to automatically extract all salary & deduction figures into your secure Neon database!",
+        "👋 **Namaste! I am TaxBuddy**, your personal AI tax advisor for **FY 2025-26**.\n\nYou can ask me tax questions, simulate rent & 80C deductions, or **upload your Form 16 / Payslip** to let AI extract and track everything!",
     },
   ]);
 
@@ -87,7 +88,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Quick Sliders Drawer State
+  // Sliders Drawer State
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [quickSalary, setQuickSalary] = useState<number>(1200000);
   const [quickRent, setQuickRent] = useState<number>(180000);
@@ -111,6 +112,8 @@ export default function Home() {
       }
     } catch {
       // ignore
+    } finally {
+      setAuthChecked(true);
     }
   }, []);
 
@@ -119,8 +122,10 @@ export default function Home() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    if (user) {
+      scrollToBottom();
+    }
+  }, [messages, loading, user]);
 
   const fetchProfile = async (uid: string) => {
     try {
@@ -164,7 +169,6 @@ export default function Home() {
         setProfile(data.profile);
       }
 
-      setShowAuthModal(false);
       setAuthPassword('');
 
       setMessages((prev) => [
@@ -172,12 +176,12 @@ export default function Home() {
         {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `⚡ **Welcome, ${data.user.name}!** You are securely logged in.\n\n${
+          content: `⚡ **Welcome, ${data.user.name}!** You are signed in.\n\n${
             data.profile
-              ? `Your latest tax dossier for **${data.profile.employer_name || 'your employer'}** is loaded (Gross: ${formatCurrency(
+              ? `Your stored tax dossier from **${data.profile.employer_name || 'your employer'}** is loaded (Gross: ${formatCurrency(
                   data.profile.gross_salary
-                )}). Ask me any question about your regime or deductions!`
-              : 'You have no tax dossier on record yet. Click **"Upload Form 16 / Payslip"** to let our multimodal AI parse your figures automatically!'
+                )}). Ask me any question or upload a new payslip!`
+              : 'You have no tax dossier on record yet. Click **"Upload Form 16 / Payslip"** in the top bar to let Multimodal AI extract your figures automatically!'
           }`,
         },
       ]);
@@ -194,24 +198,11 @@ export default function Home() {
     setUser(null);
     setProfile(null);
     setShowProfileDrawer(false);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: 'You have been signed out. You can continue asking questions as a guest or sign in anytime.',
-      },
-    ]);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
+    if (!file || !user) return;
 
     setUploading(true);
     const formData = new FormData();
@@ -269,11 +260,11 @@ export default function Home() {
       const resultMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `✅ **Form 16 / Payslip analyzed & saved to Neon DB!**\n\n- **Employer:** ${
+        content: `✅ **Form 16 / Payslip analyzed & saved to your Neon DB account!**\n\n- **Employer:** ${
           data.extracted.employerName || 'Extracted from file'
         }\n- **Gross Salary:** ${formatCurrency(data.extracted.grossSalary)}\n- **TDS Deducted:** ${formatCurrency(
           data.tds
-        )}\n- **Recommended Choice:** **${data.comparison.recommendation.toUpperCase()} REGIME**\n\n${statusText}\n\n*Click "My Dossier" in the header to view your full breakdown!*`,
+        )}\n- **Optimal Choice:** **${data.comparison.recommendation.toUpperCase()} REGIME**\n\n${statusText}\n\n*Click your profile in the top bar to inspect your full dossier!*`,
         comparison: data.comparison,
       };
 
@@ -296,7 +287,7 @@ export default function Home() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || !user) return;
 
     const userText = input.trim();
     setInput('');
@@ -309,7 +300,7 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, userId: user?.id || 'guest_user' }),
+        body: JSON.stringify({ messages: history, userId: user.id }),
       });
 
       const data = await res.json();
@@ -370,6 +361,241 @@ export default function Home() {
     setMessages((prev) => [...prev, compMsg]);
   };
 
+  // Wait until localStorage check is done
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#090d16] text-white">
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-sm text-slate-400 font-mono">Initializing TaxBuddy...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // LANDING PAGE: AUTH (LOGIN / SIGNUP) WHEN NOT SIGNED IN
+  // -------------------------------------------------------------------------
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col bg-[#090d16] text-slate-100 font-sans relative overflow-x-hidden selection:bg-emerald-500 selection:text-black">
+        {/* Ambient Neon Background Glows */}
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-emerald-500/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute top-1/2 -right-40 w-[500px] h-[500px] bg-teal-500/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute -bottom-40 left-1/3 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[140px] pointer-events-none" />
+
+        {/* Top Minimal Brand Bar */}
+        <header className="flex items-center justify-between border-b border-slate-800/80 bg-[#0d121f]/90 backdrop-blur-md px-6 py-4 z-20">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-black font-black text-xl shadow-lg shadow-emerald-500/30">
+              ₹
+            </div>
+            <div>
+              <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+                TaxBuddy <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent font-extrabold text-xs">AI</span>
+              </h1>
+              <p className="text-[11px] text-slate-400">Autonomous Tax Advisory & Filing Platform</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-2.5 py-1 rounded-full font-mono font-medium">
+              FY 2025-26 Ready
+            </span>
+          </div>
+        </header>
+
+        {/* Main Hero & Auth Split Layout */}
+        <div className="flex-1 flex items-center justify-center p-4 md:p-8 z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-5xl w-full items-center">
+            {/* Left Value Prop Hero */}
+            <div className="lg:col-span-7 space-y-6 text-left">
+              <div className="inline-flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 px-3.5 py-1.5 rounded-full text-xs text-emerald-300 font-medium">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Next-Gen Indian Tax Optimization</span>
+              </div>
+
+              <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight">
+                Clear all tax confusion in <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-teal-500 bg-clip-text text-transparent">30 seconds</span>.
+              </h2>
+
+              <p className="text-sm md:text-base text-slate-400 leading-relaxed max-w-xl">
+                Upload your <strong>Form 16 or Monthly Payslip</strong>. Our multimodal AI reads your line-items, tells you whether the <strong>Old or New Tax Regime</strong> saves more money, and reveals how much refund you'll get from the Income Tax department.
+              </p>
+
+              {/* Feature Highlights Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="bg-[#0d121f]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-xs">Instant Form 16 OCR</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Extracts salary & TDS with zero manual typing.</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0d121f]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
+                  <div className="p-2 rounded-xl bg-teal-500/10 text-teal-400 shrink-0">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-xs">Regime Verdict</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Exact rupee-for-rupee comparison & savings.</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0d121f]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-xs">Private & Serverless</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Backed by Neon Serverless PostgreSQL.</p>
+                  </div>
+                </div>
+
+                <div className="bg-[#0d121f]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
+                  <div className="p-2 rounded-xl bg-teal-500/10 text-teal-400 shrink-0">
+                    <Coins className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-xs">Legal Tax Cuts</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">80C, 80D, HRA & NPS optimization tips.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Landing Auth Card */}
+            <div className="lg:col-span-5">
+              <div className="bg-[#0d121f]/95 rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-800 relative overflow-hidden backdrop-blur-xl">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="font-black text-white text-xl">
+                      {authMode === 'login' ? 'Welcome Back' : 'Create Tax Account'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Sign in to unlock your personalised tax co-pilot</p>
+                  </div>
+                </div>
+
+                {/* Switcher Tab */}
+                <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl mb-5 border border-slate-800 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                    }}
+                    className={`py-2 rounded-lg transition-all ${
+                      authMode === 'login'
+                        ? 'bg-emerald-500 text-black font-bold shadow-md shadow-emerald-500/20'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setAuthError('');
+                    }}
+                    className={`py-2 rounded-lg transition-all ${
+                      authMode === 'signup'
+                        ? 'bg-emerald-500 text-black font-bold shadow-md shadow-emerald-500/20'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+
+                {authError && (
+                  <div className="bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs p-3 rounded-xl mb-4 flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-rose-400 shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleAuthSubmit} className="space-y-3.5">
+                  {authMode === 'signup' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Your Full Name</label>
+                      <div className="relative">
+                        <UserIcon className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                        <input
+                          type="text"
+                          required
+                          value={authName}
+                          onChange={(e) => setAuthName(e.target.value)}
+                          placeholder="e.g. Suman Anand"
+                          className="w-full text-xs rounded-xl border border-slate-700/80 bg-[#121829] pl-9 pr-3 py-3 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                      <input
+                        type="email"
+                        required
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        placeholder="e.g. suman@example.com"
+                        className="w-full text-xs rounded-xl border border-slate-700/80 bg-[#121829] pl-9 pr-3 py-3 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full text-xs rounded-xl border border-slate-700/80 bg-[#121829] pl-9 pr-3 py-3 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none transition-colors"
+                      />
+                    </div>
+                    {authMode === 'signup' && (
+                      <p className="text-[10px] text-slate-500 mt-1">Minimum 6 characters</p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="w-full mt-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-extrabold text-xs py-3.5 rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    <span>
+                      {authLoading
+                        ? 'Verifying with Neon DB...'
+                        : authMode === 'login'
+                        ? 'Sign In to Dashboard'
+                        : 'Create Free Account'}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // AUTHENTICATED APP DASHBOARD
+  // -------------------------------------------------------------------------
   return (
     <div className="flex h-screen flex-col bg-[#090d16] text-slate-100 font-sans relative overflow-hidden">
       {/* Background ambient neon glow effects */}
@@ -400,10 +626,7 @@ export default function Home() {
         <div className="flex items-center gap-2.5">
           {/* Upload Button */}
           <button
-            onClick={() => {
-              if (!user) setShowAuthModal(true);
-              else fileInputRef.current?.click();
-            }}
+            onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             className="group relative flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-2 text-xs font-semibold text-black shadow-lg shadow-emerald-500/20 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           >
@@ -428,31 +651,21 @@ export default function Home() {
           </button>
 
           {/* User Sign In / Profile Button */}
-          {user ? (
-            <button
-              onClick={() => setShowProfileDrawer(true)}
-              className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 hover:bg-emerald-900/50 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-all"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          <button
+            onClick={() => setShowProfileDrawer(true)}
+            className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 hover:bg-emerald-900/50 px-3.5 py-2 text-xs font-medium text-emerald-300 transition-all"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="max-w-[120px] truncate font-semibold">{user.name}</span>
+            {profile && (
+              <span className="hidden md:inline bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
+                Dossier Active
               </span>
-              <span className="max-w-[100px] truncate">{user.name}</span>
-              {profile && (
-                <span className="hidden md:inline bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
-                  Dossier Active
-                </span>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2 text-xs font-semibold shadow-sm transition-all"
-            >
-              <UserIcon className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Sign In / Sign Up</span>
-            </button>
-          )}
+            )}
+          </button>
         </div>
       </header>
 
@@ -893,135 +1106,6 @@ export default function Home() {
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Sign Out</span>
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Complete Auth Modal (Email + Password Login / Signup) */}
-        {showAuthModal && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-[#0d121f] rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-slate-800 relative overflow-hidden">
-              <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="flex justify-between items-center mb-5">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-black flex items-center justify-center font-black text-base shadow-md shadow-emerald-500/20">
-                    ₹
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base">
-                      {authMode === 'login' ? 'Welcome Back' : 'Create Tax Account'}
-                    </h3>
-                    <p className="text-[11px] text-slate-400">Secure Neon DB Authentication</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowAuthModal(false)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Tabs */}
-              <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl mb-4 border border-slate-800 text-xs font-medium">
-                <button
-                  onClick={() => {
-                    setAuthMode('login');
-                    setAuthError('');
-                  }}
-                  className={`py-1.5 rounded-lg transition-all ${
-                    authMode === 'login'
-                      ? 'bg-emerald-500 text-black font-bold shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setAuthError('');
-                  }}
-                  className={`py-1.5 rounded-lg transition-all ${
-                    authMode === 'signup'
-                      ? 'bg-emerald-500 text-black font-bold shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Sign Up
-                </button>
-              </div>
-
-              {authError && (
-                <div className="bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs p-2.5 rounded-xl mb-3 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                  <span>{authError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAuthSubmit} className="space-y-3">
-                {authMode === 'signup' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Your Full Name</label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                      <input
-                        type="text"
-                        required
-                        value={authName}
-                        onChange={(e) => setAuthName(e.target.value)}
-                        placeholder="e.g. Suman Anand"
-                        className="w-full text-xs rounded-xl border border-slate-700 bg-[#121829] pl-9 pr-3 py-2.5 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                    <input
-                      type="email"
-                      required
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      placeholder="e.g. suman@example.com"
-                      className="w-full text-xs rounded-xl border border-slate-700 bg-[#121829] pl-9 pr-3 py-2.5 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full text-xs rounded-xl border border-slate-700 bg-[#121829] pl-9 pr-3 py-2.5 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1">Minimum 6 characters</p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full mt-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-bold text-xs py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
-                >
-                  {authLoading
-                    ? 'Processing...'
-                    : authMode === 'login'
-                    ? 'Sign In & Access Dossier'
-                    : 'Create Account & Neon Database Profile'}
-                </button>
-              </form>
             </div>
           </div>
         )}
