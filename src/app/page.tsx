@@ -91,6 +91,7 @@ export default function Home() {
   // Sliders Drawer State
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [quickSalary, setQuickSalary] = useState<number>(1200000);
+  const [quickAge, setQuickAge] = useState<'below60' | '60to80' | 'above80'>('below60');
   const [quickRent, setQuickRent] = useState<number>(180000);
   const [quick80C, setQuick80C] = useState<number>(150000);
   const [quick80D, setQuick80D] = useState<number>(25000);
@@ -349,7 +350,7 @@ export default function Home() {
       otherAllowances: 0,
     };
 
-    const res = compareRegimes(quickSalary, deductions, salaryBreakdown, 'below60');
+    const res = compareRegimes(quickSalary, deductions, salaryBreakdown, quickAge);
     setInstantResult(res);
 
     const compMsg: Message = {
@@ -876,6 +877,53 @@ export default function Home() {
             </div>
 
             <div className="space-y-3.5 text-xs">
+              {/* Age Category Selector */}
+              <div>
+                <label className="block font-medium text-slate-300 mb-1.5">Taxpayer Category (Age):</label>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#121829] rounded-xl border border-slate-800 text-[11px] font-semibold text-center">
+                  <button
+                    type="button"
+                    onClick={() => setQuickAge('below60')}
+                    className={`py-1.5 rounded-lg transition-all ${
+                      quickAge === 'below60'
+                        ? 'bg-emerald-500 text-black font-bold shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    &lt; 60 Yrs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickAge('60to80')}
+                    className={`py-1.5 rounded-lg transition-all ${
+                      quickAge === '60to80'
+                        ? 'bg-emerald-500 text-black font-bold shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    60-80 Yrs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickAge('above80')}
+                    className={`py-1.5 rounded-lg transition-all ${
+                      quickAge === 'above80'
+                        ? 'bg-emerald-500 text-black font-bold shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    80+ Yrs
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {quickAge === 'below60'
+                    ? 'Regular individual (Standard slabs apply)'
+                    : quickAge === '60to80'
+                    ? 'Senior Citizen: Basic exemption increases to ₹3L & 80D limit up to ₹50K'
+                    : 'Super Senior Citizen: Basic exemption increases to ₹5L'}
+                </p>
+              </div>
+
               <div>
                 <div className="flex justify-between items-center font-medium text-slate-300 mb-1">
                   <span>Annual Salary:</span>
